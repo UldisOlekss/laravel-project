@@ -9,6 +9,8 @@ use Illuminate\Support\Carbon;
 
 class CurrencyImport extends Command
 {
+    const BANK_URL = 'https://www.bank.lv/vk/ecb_rss.xml';
+
     /**
      * The name and signature of the console command.
      *
@@ -35,19 +37,24 @@ class CurrencyImport extends Command
 
     public function handle()
     {
-        $xml_string = file_get_contents('https://www.bank.lv/vk/ecb_rss.xml');
+        $xml_string = file_get_contents(self::BANK_URL);
         $xml = simplexml_load_string($xml_string);
         $channel = (array)$xml->channel;
 
+        $this->singleRate($channel);
+    }
+
+    private function singleRate(array $channel)
+    {
         foreach ((array)$channel['item'] as $channelItem) {
             $item = (array)$channelItem;
             $currencyString = (string)$item['description'];
 
             $data = collect(array_chunk(explode(' ', $currencyString), 2));
-            $filter = $data->filter(function($item) {
+            $filter = $data->filter(function ($item) {
                 return !empty($item[0]);
             });
-            $currencyList = $filter->map(function($item) {
+            $currencyList = $filter->map(function ($item) {
                 return [$item[0] => $item[1]];
             })->collapse();
             $dateString = (string)$item['pubDate'];
@@ -61,9 +68,11 @@ class CurrencyImport extends Command
                     'currency_id' => $currencyModel->id,
                     'datetime' => $ratePublishDate,
                 ]);
-                $currencyRateModel->currency_id = $currencyModel->id;
-                $currencyRateModel->rate = $rate;
-                $currencyRateModel->save();
+                if (!$currencyRateModel->id) {
+                    $currencyRateModel->currency_id = $currencyModel->id;
+                    $currencyRateModel->rate = $rate;
+                    $currencyRateModel->save();
+                }
             }
         }
     }

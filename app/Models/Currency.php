@@ -17,6 +17,11 @@ class Currency extends Model
         'name',
     ];
 
+    public function getLatestRateAttribute()
+    {
+        return $this->rates()->orderBy('datetime', 'desc')->first()->toArray();
+    }
+
     public function rates()
     {
         return $this->hasMany(CurrencyRate::class);
